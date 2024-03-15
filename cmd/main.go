@@ -63,7 +63,14 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func init() {
-	users["oli"] = User{username: "oli", password: "123"}
+	users["oli1"] = User{username: "oli1", password: "124"}
+	users["oli2"] = User{username: "oli2", password: "125"}
+	users["oli3"] = User{username: "oli3", password: "126"}
+	users["oli4"] = User{username: "oli4", password: "127"}
+	users["oli5"] = User{username: "oli5", password: "128"}
+	users["oli6"] = User{username: "oli6", password: "129"}
+	users["oli7"] = User{username: "oli7", password: "130"}
+	users["oli8"] = User{username: "oli8", password: "131"}
 }
 
 func main() {
