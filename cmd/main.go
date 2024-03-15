@@ -8,13 +8,7 @@ import (
 	"net/http"
 )
 
-//go:embed index.tmpl
-var index string
-var indexTemplate *template.Template = template.Must(template.New("index").Parse(index))
-
-//go:embed login.tmpl
-var login string
-var loginTemplate *template.Template = template.Must(template.New("login").Parse(login))
+var templates = template.Must(template.ParseGlob("internal/pages/views/*.tmpl"))
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	_, err := r.Cookie("session")
@@ -22,7 +16,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	indexTemplate.Execute(w, nil)
+	templates.ExecuteTemplate(w, "index.tmpl", nil)
 }
 
 type User struct {
@@ -34,7 +28,7 @@ var users = make(map[string]User)
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		loginTemplate.Execute(w, nil)
+		templates.ExecuteTemplate(w, "login.tmpl", nil)
 	} else if r.Method == http.MethodPost {
 		err := r.ParseForm()
 		if err != nil {
@@ -43,18 +37,33 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		username := r.Form.Get("username")
 		password := r.Form.Get("password")
-        user, ok := users[username]
-        if !ok {
-            http.Error(w, "No such User", http.StatusNotFound)
-            return
-        }
-        // NOT TODO
-		//users[username] = User{username: username, password: password}
+		user, userExists := users[username]
 
-        // TODO
+		if !userExists || user.password != password {
+			templates.ExecuteTemplate(w, "login.tmpl", struct{ Error string }{Error: "Incorrect username or password."})
+			return
+		}
+
+		cookie := http.Cookie{
+			Name:     "session",
+			Value:    "random thingy",
+			Path:     "/",
+			MaxAge:   3600,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		}
+
+		http.SetCookie(w, &cookie)
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
 	} else {
 		http.NotFound(w, r)
 	}
+}
+
+func init() {
+	users["oli"] = User{username: "oli", password: "123"}
 }
 
 func main() {
