@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -37,6 +38,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request, u User) {
 type User struct {
 	username string
 	password string // pls hack me
+	displayname string 
 }
 
 var users = make(map[string]User)
@@ -78,8 +80,30 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func accountHandler (w http.ResponseWriter, r *http.Request, u User) {
-	templates.ExecuteTemplate(w, "account.tmpl", struct {Username string}{Username: u.username})
+	var dname string
+	if (u.displayname == "") {
+		dname = u.username
+
+	}else {
+	  dname = u.displayname
+	}
+
+	templates.ExecuteTemplate(w, "account.tmpl", struct {DisplayName string}{DisplayName: dname})
 }
+
+func saveAccountDetails (w http.ResponseWriter, r *http.Request, u User){
+	if r.Method == http.MethodPost {
+		err := r.ParseForm()
+		if err != nil {
+			http.Error(w, "Error parsing form params", http.StatusBadRequest)
+			return
+		}
+		displayName := r.Form.Get("display_name")
+		u.displayname = displayName
+		fmt.Printf("%s", displayName)
+
+
+}}
 
 func init() {
 	users["oli1"] = User{username: "oli1", password: "124"}
@@ -97,6 +121,7 @@ func main() {
 	mux.Handle("/", withAuth(indexHandler))
 	mux.Handle("/login", http.HandlerFunc(loginHandler))
 	mux.Handle("/account", withAuth(accountHandler))
+	mux.Handle("/save-account-details", withAuth(accountHandler)) // do an api call not change url on address also this doesnt work right now
 
 	server := http.Server{Addr: "localhost:8080", Handler: mux}
 	log.Fatal(server.ListenAndServe())

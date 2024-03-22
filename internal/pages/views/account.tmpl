@@ -3,6 +3,10 @@
     {{template "head" .}}
     <body>
     <h1> Display Name </h1>
-    <h3> {{ .Username }} </h3>
+    <h3> {{.DisplayName}} </h3>
+    <form method="POST" action="/save-account-details">
+                <input name="display_name" type="text" value="{{.DisplayName}}">
+                <input type="submit" value="Change Display Name">
+            </form>
     </body>
 </html>
