@@ -2,7 +2,6 @@ package main
 
 import (
 	_ "embed"
-	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -10,13 +9,29 @@ import (
 
 var templates = template.Must(template.ParseGlob("internal/pages/views/*.tmpl"))
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
+func withAuth (h func(http.ResponseWriter, *http.Request, User)) http.Handler {
+	return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session")
+		if err == http.ErrNoCookie {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		user:= users[cookie.Value]
+		h(w, r , user)
+	}) 
+
+}
+
+func getUser (w http.ResponseWriter, r *http.Request) {
 	_, err := r.Cookie("session")
 	if err == http.ErrNoCookie {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	templates.ExecuteTemplate(w, "index.tmpl", nil)
+}
+
+func indexHandler(w http.ResponseWriter, r *http.Request, u User) {
+	templates.ExecuteTemplate(w, "index.tmpl", struct {Username string}{Username: u.username})
 }
 
 type User struct {
@@ -46,7 +61,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		cookie := http.Cookie{
 			Name:     "session",
-			Value:    "random thingy",
+			Value:    username,
 			Path:     "/",
 			MaxAge:   3600,
 			HttpOnly: true,
@@ -62,6 +77,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func accountHandler (w http.ResponseWriter, r *http.Request, u User) {
+	templates.ExecuteTemplate(w, "account.tmpl", struct {Username string}{Username: u.username})
+}
+
 func init() {
 	users["oli1"] = User{username: "oli1", password: "124"}
 	users["oli2"] = User{username: "oli2", password: "125"}
@@ -75,8 +94,9 @@ func init() {
 
 func main() {
 	mux := http.NewServeMux()
-	mux.Handle("/", http.HandlerFunc(indexHandler))
+	mux.Handle("/", withAuth(indexHandler))
 	mux.Handle("/login", http.HandlerFunc(loginHandler))
+	mux.Handle("/account", withAuth(accountHandler))
 
 	server := http.Server{Addr: "localhost:8080", Handler: mux}
 	log.Fatal(server.ListenAndServe())
