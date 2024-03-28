@@ -2,11 +2,17 @@
 <html>
     {{template "head" .}}
     <body>
-    <h1> Display Name </h1>
-    <h3> {{.DisplayName}} </h3>
-    <form method="POST" action="/save-account-details">
-                <input name="display_name" type="text" value="{{.DisplayName}}">
-                <input type="submit" value="Change Display Name">
-            </form>
+        <h1> Display Name </h1>
+        <h3 id="displayname"> {{.DisplayName}} </h3>
+        <form id="userform" hx-post="/save-account-details" hx-target="#displayname" hx-swap="">
+            <input name="display_name" type="text" value="{{.DisplayName}}">
+            <input type="submit" value="Change Display Name">
+        </div>
+        <script>
+            document.getElementById("userform").addEventListener('htmx:afterRequest', e => {
+                document.getElementById("userform").reset();
+                console.log(e);
+            })
+        </script>
     </body>
 </html>

@@ -2,10 +2,15 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
+	"strings"
+
+	"golang.org/x/net/websocket"
 )
 
 var templates = template.Must(template.ParseGlob("internal/pages/views/*.tmpl"))
@@ -38,7 +43,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request, u User) {
 type User struct {
 	username string
 	password string // pls hack me
-	displayname string 
+	displayname string
 }
 
 var users = make(map[string]User)
@@ -80,18 +85,13 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func accountHandler (w http.ResponseWriter, r *http.Request, u User) {
-	var dname string
-	if (u.displayname == "") {
-		dname = u.username
-
-	}else {
-	  dname = u.displayname
-	}
-
-	templates.ExecuteTemplate(w, "account.tmpl", struct {DisplayName string}{DisplayName: dname})
+	templates.ExecuteTemplate(w, "account.tmpl", struct {DisplayName string}{DisplayName: u.displayname})
 }
 
-func saveAccountDetails (w http.ResponseWriter, r *http.Request, u User){
+func chatHandler (w http.ResponseWriter, r *http.Request, u User) {
+	templates.ExecuteTemplate(w, "chat.tmpl", struct {DisplayName string}{DisplayName: u.displayname})
+}
+func saveAccountDetails (w http.ResponseWriter, r *http.Request, u User) {
 	if r.Method == http.MethodPost {
 		err := r.ParseForm()
 		if err != nil {
@@ -99,29 +99,69 @@ func saveAccountDetails (w http.ResponseWriter, r *http.Request, u User){
 			return
 		}
 		displayName := r.Form.Get("display_name")
-		u.displayname = displayName
-		fmt.Printf("%s", displayName)
+		if !strings.Contains(displayName, "fraser") {
+			u.displayname = displayName
+			fmt.Printf("%s", displayName)
+			users[u.username] = u
+			w.Write([]byte("<div><p>New Display Name " + displayName + "</p><script>alert('hello!')</script></div>"))
+		} else {
+			w.Write([]byte("<p>You cannot include that word!</p>"))
+		}
+	}
+}
 
-
-}}
+func createUser(username, password string) User {
+	return User{username: username, password: password, displayname: username}
+}
 
 func init() {
-	users["oli1"] = User{username: "oli1", password: "124"}
-	users["oli2"] = User{username: "oli2", password: "125"}
-	users["oli3"] = User{username: "oli3", password: "126"}
-	users["oli4"] = User{username: "oli4", password: "127"}
-	users["oli5"] = User{username: "oli5", password: "128"}
-	users["oli6"] = User{username: "oli6", password: "129"}
-	users["oli7"] = User{username: "oli7", password: "130"}
-	users["oli8"] = User{username: "oli8", password: "131"}
+	users["oli1"] = createUser("oli1", "124")
+	users["oli2"] = createUser("oli2", "356")
+	users["oli3"] = createUser("oli3", "789")
+	users["oli4"] = createUser("oli4", "918")
+	users["oli5"] = createUser("oli5", "184")
+}
+
+var wsConnections []*websocket.Conn
+
+type Message struct {
+	ChatMessage string `json:"chat_message"`
+}
+
+func EchoServer(ws *websocket.Conn) {
+	defer ws.Close()
+	cookie, err := ws.Request().Cookie("session")
+	if err == http.ErrNoCookie {
+		ws.Write([]byte("No valid session Cookie"))
+		return
+	}
+	username := users[cookie.Value].displayname
+	fmt.Println("username: " + username)
+	wsConnections = append(wsConnections, ws)
+	var m Message
+	dec := json.NewDecoder(ws)
+	for {
+		if err := dec.Decode(&m); err == io.EOF {
+			break
+		} else {
+			for _, wsi := range wsConnections {
+				wsi.Write([]byte("<div id=\"chat_room\" hx-swap-oob=\"beforeend\">" + username + ": " + m.ChatMessage + "<br /></div>"))
+			}
+		}
+	}
 }
 
 func main() {
+	fmt.Println("Server Started on port 8080")
+
 	mux := http.NewServeMux()
 	mux.Handle("/", withAuth(indexHandler))
 	mux.Handle("/login", http.HandlerFunc(loginHandler))
 	mux.Handle("/account", withAuth(accountHandler))
-	mux.Handle("/save-account-details", withAuth(accountHandler)) // do an api call not change url on address also this doesnt work right now
+	mux.Handle("/save-account-details", withAuth(saveAccountDetails)) // do an api call not change url on address also this doesnt work right now
+
+	mux.Handle("/ws", websocket.Handler(EchoServer))
+	mux.Handle("/chat", withAuth(chatHandler))
 
 	server := http.Server{Addr: "localhost:8080", Handler: mux}
 	log.Fatal(server.ListenAndServe())

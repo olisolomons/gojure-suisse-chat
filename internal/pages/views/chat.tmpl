@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+    {{template "head" .}}
+    <body>
+        <h1>Chat</h1>
+        <div id="chat_room"></div>
+        <div hx-ext="ws" ws-connect="/ws">
+            <form id="form" ws-send>
+                <input name="chat_message">
+            </form>
+            <script>
+                document.body.addEventListener('htmx:wsAfterMessage', e => {
+                    document.getElementById("form").reset();
+                })
+            </script>
+        </div>
+    </body>
+</html>
